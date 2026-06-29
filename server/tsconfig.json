@@ -1,0 +1,6 @@
+{
+  // Editor-only: makes the TS language server resolve server files with the
+  // Bun + Node types. The build/typecheck still uses ../tsconfig.server.json.
+  "extends": "../tsconfig.server.json",
+  "include": ["."]
+}

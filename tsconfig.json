@@ -16,6 +16,5 @@
     "noUnusedParameters": true,
     "types": ["vite/client"]
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.server.json" }]
+  "include": ["src"]
 }
