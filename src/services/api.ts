@@ -55,6 +55,21 @@ export const api = {
       body: JSON.stringify({ credential }),
     })
   },
+  signup(input: { name: string; email: string; password: string }): Promise<SessionState> {
+    return request<SessionState>('/api/auth/signup', { method: 'POST', body: JSON.stringify(input) })
+  },
+  passwordSignIn(email: string, password: string): Promise<SessionState> {
+    return request<SessionState>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+  },
+  requestPasswordReset(email: string): Promise<{ ok: true }> {
+    return request<{ ok: true }>('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
+  },
+  resetPassword(token: string, password: string): Promise<SessionState> {
+    return request<SessionState>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    })
+  },
   logout(): Promise<null> {
     return request<null>('/api/auth/logout', { method: 'POST' })
   },

@@ -8,6 +8,7 @@ import { Layout } from './components/Layout'
 import { Spinner } from './components/ui'
 import { LoginPage } from './pages/LoginPage'
 import { SignupPage } from './pages/SignupPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { LandingPage } from './pages/LandingPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectLayout } from './pages/ProjectLayout'
@@ -82,6 +83,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
       <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
+      <Route path="/reset-password" element={<PublicOnly><ResetPasswordPage /></PublicOnly>} />
       <Route path="/create-org" element={<CreateOrgGate />} />
 
       <Route path="/" element={<HomeRoute />} />

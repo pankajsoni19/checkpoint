@@ -6,6 +6,9 @@ interface AuthValue {
   user: SessionUser | null
   loading: boolean
   signIn: (googleCredential: string) => Promise<void>
+  signInWithPassword: (email: string, password: string) => Promise<void>
+  signUp: (input: { name: string; email: string; password: string }) => Promise<void>
+  resetPassword: (token: string, password: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -36,12 +39,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(session.user)
   }, [])
 
+  const signInWithPassword = useCallback(async (email: string, password: string) => {
+    const session = await api.passwordSignIn(email, password)
+    setUser(session.user)
+  }, [])
+
+  const signUp = useCallback(async (input: { name: string; email: string; password: string }) => {
+    const session = await api.signup(input)
+    setUser(session.user)
+  }, [])
+
+  const resetPassword = useCallback(async (token: string, password: string) => {
+    const session = await api.resetPassword(token, password)
+    setUser(session.user)
+  }, [])
+
   const signOut = useCallback(async () => {
     await api.logout()
     setUser(null)
   }, [])
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signOut }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, loading, signIn, signInWithPassword, signUp, resetPassword, signOut }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth(): AuthValue {

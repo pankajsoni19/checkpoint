@@ -7,17 +7,24 @@ import { AuthShell, AuthDivider, authInputClass, primaryBtnClass } from '../comp
 import { GoogleSignInButton } from '../components/GoogleSignInButton'
 
 export function SignupPage() {
-  const { signIn } = useAuth()
+  const { signIn, signUp } = useAuth()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
 
-  function create(e: React.FormEvent) {
+  async function create(e: React.FormEvent) {
     e.preventDefault()
-    // The backend authenticates with Google only; there is no password endpoint.
-    notify.error('Email/password sign-up isn’t enabled. Continue with Google.')
+    setBusy(true)
+    try {
+      await signUp({ name, email, password })
+      navigate('/')
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : 'Sign-up failed.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function google(credential: string) {

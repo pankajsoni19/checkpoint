@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "composite": true,
     "lib": ["ES2023"],
     "types": ["bun", "node"],
     "strict": true,
