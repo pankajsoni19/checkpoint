@@ -5,6 +5,7 @@ import { notify } from '../lib/toast'
 import { ENGINE_OPTIONS, engineDefaultPort } from '../lib/engines'
 import { Button, ErrorBanner, Field, Modal, TextInput } from './ui'
 import { Dropdown } from './Dropdown'
+import { TestConnectionButton } from './TestConnectionButton'
 
 // Sentinel dropdown value that switches the Environment field into "create new" mode.
 const NEW_ENV = '__new_env__'
@@ -24,7 +25,9 @@ export function AddDatabaseModal({
   environments: Environment[]
   defaultEnvironmentId?: string
   onClose: () => void
-  onCreated: (db: Database) => void
+  // The second arg carries a freshly-created environment so the page can show it
+  // immediately (otherwise the new DB lands under an env with no card on screen).
+  onCreated: (db: Database, newEnvironment?: Environment) => void
 }) {
   const [environmentId, setEnvironmentId] = useState(defaultEnvironmentId ?? environments[0]?.id ?? '')
   const [newEnvName, setNewEnvName] = useState('')
@@ -64,9 +67,10 @@ export function AddDatabaseModal({
     setSaving(true)
     try {
       let envId = environmentId
+      let createdEnv: Environment | undefined
       if (showNewEnvInput) {
-        const env = await api.createEnvironment(projectId, { name: newEnvName.trim() })
-        envId = env.id
+        createdEnv = await api.createEnvironment(projectId, { name: newEnvName.trim() })
+        envId = createdEnv.id
       }
       const db = await api.createDatabase({
         project_id: projectId,
@@ -78,7 +82,7 @@ export function AddDatabaseModal({
         write,
       })
       notify.success(`Database “${db.name}” added`)
-      onCreated(db)
+      onCreated(db, createdEnv)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to add database'
       setError(msg)
@@ -160,8 +164,8 @@ export function AddDatabaseModal({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <ConnectionFields legend="Read connection" value={read} onChange={setRead} />
-        <ConnectionFields legend="Write connection" value={write} onChange={setWrite} />
+        <ConnectionFields legend="Read connection" engine={engine} value={read} onChange={setRead} />
+        <ConnectionFields legend="Write connection" engine={engine} value={write} onChange={setWrite} />
       </div>
 
       <ErrorBanner message={error} />
@@ -171,10 +175,12 @@ export function AddDatabaseModal({
 
 function ConnectionFields({
   legend,
+  engine,
   value,
   onChange,
 }: {
   legend: string
+  engine: DatabaseEngine
   value: ConnectionInput
   onChange: (c: ConnectionInput) => void
 }) {
@@ -221,6 +227,17 @@ function ConnectionFields({
           />
           Require SSL
         </label>
+      </div>
+      <div className="mt-2 border-t border-slate-200/50 pt-2">
+        <TestConnectionButton
+          engine={engine}
+          host={value.host}
+          port={value.port}
+          username={value.username}
+          database={value.database}
+          ssl={value.ssl}
+          password={value.password}
+        />
       </div>
     </fieldset>
   )

@@ -187,7 +187,10 @@ export function registerAuth(router: Router) {
       'SELECT id, password_hash FROM users WHERE email = :email',
       { email },
     )
-    if (user?.password_hash) {
+    // Issue a link for any existing account. Users without a password (e.g. Google
+    // sign-up) use this flow to set one for the first time; reset-password just sets
+    // password_hash regardless of whether one existed before.
+    if (user) {
       const token = randomBytes(32).toString('base64url')
       const expires = new Date(Date.now() + RESET_TTL_MS)
       // One outstanding link per user: drop any earlier tokens first.

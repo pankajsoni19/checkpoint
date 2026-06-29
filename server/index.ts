@@ -38,6 +38,35 @@ registerAudit(router)
 
 const distDir = `${import.meta.dir}/../dist`
 
+// Decide which Origin (if any) may make credentialed cross-origin calls.
+function resolveCorsOrigin(req: Request): string | null {
+  const origin = req.headers.get('origin')
+  if (!origin) return null
+  const normalized = origin.replace(/\/$/, '')
+  if (env.corsOrigins.length > 0) {
+    return env.corsOrigins.includes(normalized) ? origin : null
+  }
+  // Dev default: allow any localhost / 127.0.0.1 origin (any port or scheme).
+  if (!env.isProd) {
+    try {
+      const host = new URL(origin).hostname
+      if (host === 'localhost' || host === '127.0.0.1') return origin
+    } catch {}
+  }
+  return null
+}
+
+function corsHeaders(origin: string): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
+  }
+}
+
 async function handleApi(req: Request, url: URL): Promise<Response> {
   if (url.pathname === '/api/health') return json({ status: 'ok', timestamp: new Date().toISOString() })
 
@@ -76,12 +105,29 @@ const server = Bun.serve({
   port: env.port,
   async fetch(req) {
     const url = new URL(req.url)
+    const allowOrigin = url.pathname.startsWith('/api/') ? resolveCorsOrigin(req) : null
+
+    // Answer the browser's CORS preflight before any routing/auth.
+    if (req.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
+      return new Response(null, { status: 204, headers: allowOrigin ? corsHeaders(allowOrigin) : {} })
+    }
+
     try {
-      if (url.pathname.startsWith('/api/')) return await handleApi(req, url)
+      if (url.pathname.startsWith('/api/')) {
+        const res = await handleApi(req, url)
+        if (allowOrigin) {
+          for (const [k, v] of Object.entries(corsHeaders(allowOrigin))) res.headers.set(k, v)
+        }
+        return res
+      }
       return await serveStatic(url)
     } catch (err) {
       console.error(err)
-      return json({ error: 'Internal server error' }, { status: 500 })
+      const res = json({ error: 'Internal server error' }, { status: 500 })
+      if (allowOrigin) {
+        for (const [k, v] of Object.entries(corsHeaders(allowOrigin))) res.headers.set(k, v)
+      }
+      return res
     }
   },
 })

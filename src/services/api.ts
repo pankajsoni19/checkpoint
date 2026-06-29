@@ -132,6 +132,19 @@ export const api = {
       body: JSON.stringify(conn),
     })
   },
+  testConnection(input: {
+    engine: string
+    host: string
+    port: number
+    username: string
+    database: string
+    ssl: boolean
+    password?: string
+    database_id?: string
+    mode?: 'read' | 'write'
+  }): Promise<{ ok: boolean; latency_ms?: number; error?: string }> {
+    return request('/api/databases/connections/test', { method: 'POST', body: JSON.stringify(input) })
+  },
 
   // --- Schema ---------------------------------------------------------------
   getSchema(databaseId: string): Promise<SchemaSnapshot | undefined> {

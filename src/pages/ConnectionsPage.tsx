@@ -7,6 +7,7 @@ import { can } from '../lib/format'
 import { notify } from '../lib/toast'
 import { ConnectionBadge } from '../components/badges'
 import { Button, Card, Field, Modal, TextInput } from '../components/ui'
+import { TestConnectionButton } from '../components/TestConnectionButton'
 import { useDatabase } from './DatabaseLayout'
 
 export function ConnectionsPage() {
@@ -40,6 +41,7 @@ export function ConnectionsPage() {
       {editing ? (
         <ConnectionEditor
           databaseId={database.id}
+          engine={database.engine}
           connection={editing}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
@@ -108,11 +110,13 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
 
 function ConnectionEditor({
   databaseId,
+  engine,
   connection,
   onClose,
   onSaved,
 }: {
   databaseId: string
+  engine: string
   connection: Connection
   onClose: () => void
   onSaved: (c: Connection) => void
@@ -183,6 +187,19 @@ function ConnectionEditor({
         />
         Require SSL
       </label>
+      <div className="mt-3 border-t border-slate-200/50 pt-3">
+        <TestConnectionButton
+          engine={engine}
+          host={form.host}
+          port={form.port}
+          username={form.username}
+          database={form.database}
+          ssl={form.ssl}
+          password={password}
+          databaseId={databaseId}
+          mode={form.mode}
+        />
+      </div>
     </Modal>
   )
 }

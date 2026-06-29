@@ -27,6 +27,13 @@ export const env = {
   // Falls back to the request origin when unset.
   appBaseUrl: (process.env.APP_BASE_URL ?? '').replace(/\/$/, ''),
 
+  // Browser origins allowed to call the API with credentials (comma-separated).
+  // When empty in development, any localhost/127.0.0.1 origin is allowed.
+  corsOrigins: (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim().replace(/\/$/, ''))
+    .filter(Boolean),
+
   // Single-tenant lock: when set, this org is auto-created and every user joins it.
   lockedOrg: (process.env.VITE_ORG ?? process.env.LOCKED_ORG ?? '').trim(),
 

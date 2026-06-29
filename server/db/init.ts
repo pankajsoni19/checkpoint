@@ -1,6 +1,7 @@
 import { execute, queryOne } from './pool'
 import { env, ORG_LOCKED } from '../env'
 import { newId } from '../lib/ids'
+import { SCHEMA_STATEMENTS, COLUMN_MIGRATIONS } from './migrations'
 
 // Add a column only when it's missing, so boots are idempotent on older schemas.
 async function ensureColumn(table: string, column: string, alterClause: string): Promise<void> {
@@ -20,26 +21,16 @@ function slugify(name: string): string {
 
 // Apply the schema (idempotent) and ensure the locked org exists when configured.
 export async function initDb(): Promise<void> {
-  const sql = await Bun.file(`${import.meta.dir}/schema.sql`).text()
-  // Strip whole-line `--` comments first, THEN split. Splitting first would glue a
-  // statement's leading comment to it, and a statement that merely begins with a
-  // comment would be dropped — which previously skipped the very first CREATE.
-  const stripped = sql
-    .split('\n')
-    .filter((line) => !line.trim().startsWith('--'))
-    .join('\n')
-  // Split on `;` at end of line — sufficient for this DDL (no procedures).
-  const statements = stripped
-    .split(/;\s*$/m)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  for (const stmt of statements) {
+  // Inlined, one-statement-per-entry DDL — no file read or statement parsing.
+  for (const stmt of SCHEMA_STATEMENTS) {
     await execute(stmt)
   }
 
-  // MySQL has no `ADD COLUMN IF NOT EXISTS`, so guard columns added after the
-  // initial release for databases provisioned before this change.
-  await ensureColumn('users', 'password_hash', 'ADD COLUMN password_hash TEXT NULL')
+  // MySQL has no `ADD COLUMN IF NOT EXISTS`, so guard columns added after a table
+  // first shipped, for databases provisioned before the column existed.
+  for (const m of COLUMN_MIGRATIONS) {
+    await ensureColumn(m.table, m.column, m.alter)
+  }
 
   if (ORG_LOCKED) {
     const existing = await queryOne<{ id: string }>('SELECT id FROM organizations WHERE id = :id', { id: 'org_primary' })

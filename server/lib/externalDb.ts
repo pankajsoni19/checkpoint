@@ -31,6 +31,20 @@ async function connect(c: ConnectionSecret) {
   }
 }
 
+// Open a connection, run a trivial probe, and report round-trip latency. Used by
+// the "validate connection" buttons before a database/connection is saved.
+export async function testConnection(engine: string, c: ConnectionSecret): Promise<{ latencyMs: number }> {
+  if (!supportsLiveAccess(engine)) notImplemented(engine)
+  const started = Date.now()
+  const conn = await connect(c)
+  try {
+    await conn.query('SELECT 1')
+  } finally {
+    await conn.end()
+  }
+  return { latencyMs: Date.now() - started }
+}
+
 interface Column { name: string; data_type: string; nullable: boolean; default: string | null; is_primary_key: boolean }
 interface TableDef { name: string; schema: string; estimated_rows: number; columns: Column[]; indexes: { name: string; columns: string[]; unique: boolean }[] }
 

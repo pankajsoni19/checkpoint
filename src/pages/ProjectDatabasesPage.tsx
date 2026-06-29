@@ -60,7 +60,10 @@ export function ProjectDatabasesPage() {
           projectId={project.id}
           environments={environments}
           onClose={() => setShowAdd(false)}
-          onCreated={(db) => {
+          onCreated={(db, newEnvironment) => {
+            if (newEnvironment) {
+              setEnvironments((prev) => (prev ? [...prev, newEnvironment] : [newEnvironment]))
+            }
             setDatabases((prev) => [...prev, db])
             setShowAdd(false)
           }}

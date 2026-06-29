@@ -4,7 +4,9 @@ import { requireUser, requireCapability, userOrgIds, assertOrgMember } from '../
 import { newId } from '../lib/ids'
 import { encryptSecret } from '../lib/crypto'
 import { writeAudit } from '../lib/audit'
-import { DB_SELECT, loadDb, serializeDb, type DbRow } from './databases.repo'
+import { DB_SELECT, loadDb, serializeDb, getConnectionSecret, type DbRow } from './databases.repo'
+import { testConnection } from '../lib/externalDb'
+import { HttpError } from '../lib/http'
 
 interface ConnInput {
   host: string
@@ -74,6 +76,49 @@ export function registerDatabases(router: Router) {
     await upsertConnection(id, 'write', body.write)
     await writeAudit({ actor: user, orgId: org_id, action: 'database.create', entityType: 'database', entityId: id, entityLabel: body.name, summary: `Added database ${body.name} (${body.engine})` })
     return json(await serializeDb(await loadDb(user.id, id)))
+  })
+
+  // Validate connection details without saving. Used by the "validate connection"
+  // buttons in the add/edit dialogs. When editing an existing connection and the
+  // password is left blank, fall back to the stored (decrypted) password.
+  router.post('/api/databases/connections/test', async (ctx: Ctx) => {
+    const user = requireCapability(ctx, 'edit')
+    const body = await readJson<{
+      engine: string
+      host: string
+      port: number
+      username: string
+      database: string
+      ssl: boolean
+      password?: string
+      database_id?: string
+      mode?: 'read' | 'write'
+    }>(ctx.req)
+    if (!body.engine || !body.host || !body.database) throw badRequest('engine, host and database are required.')
+
+    let password = body.password ?? ''
+    if (!password && body.database_id && body.mode) {
+      // Membership-check the database before touching its stored secret.
+      const db = await loadDb(user.id, body.database_id)
+      const stored = await getConnectionSecret(db.id, body.mode)
+      password = stored?.password ?? ''
+    }
+
+    try {
+      const { latencyMs } = await testConnection(body.engine, {
+        host: body.host,
+        port: Number(body.port),
+        username: body.username,
+        database: body.database,
+        ssl: !!body.ssl,
+        password,
+      })
+      return json({ ok: true, latency_ms: latencyMs })
+    } catch (err) {
+      // Report the failure inline (200) rather than as an API error.
+      const message = err instanceof HttpError ? err.message : (err as Error).message
+      return json({ ok: false, error: message })
+    }
   })
 
   // Update one connection (admin only). Empty password keeps the existing one.
