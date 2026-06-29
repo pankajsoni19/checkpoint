@@ -21,11 +21,18 @@ function slugify(name: string): string {
 // Apply the schema (idempotent) and ensure the locked org exists when configured.
 export async function initDb(): Promise<void> {
   const sql = await Bun.file(`${import.meta.dir}/schema.sql`).text()
+  // Strip whole-line `--` comments first, THEN split. Splitting first would glue a
+  // statement's leading comment to it, and a statement that merely begins with a
+  // comment would be dropped — which previously skipped the very first CREATE.
+  const stripped = sql
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n')
   // Split on `;` at end of line — sufficient for this DDL (no procedures).
-  const statements = sql
+  const statements = stripped
     .split(/;\s*$/m)
     .map((s) => s.trim())
-    .filter((s) => s && !s.startsWith('--'))
+    .filter(Boolean)
   for (const stmt of statements) {
     await execute(stmt)
   }

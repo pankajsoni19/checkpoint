@@ -31,7 +31,7 @@ services:
 
   # Checkpoint's own metadata store (orgs, projects, migrations, audit logs).
   db:
-    image: mysql:8
+    image: mysql:8.4.10
     environment:
       MYSQL_DATABASE: checkpoint
       MYSQL_USER: checkpoint

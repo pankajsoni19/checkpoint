@@ -16,7 +16,7 @@ export interface ConnectionSecret {
 // Decrypted connection details for connecting to a managed (external) database.
 export async function getConnectionSecret(databaseId: string, mode: 'read' | 'write'): Promise<ConnectionSecret | null> {
   const c = await queryOne<{ host: string; port: number; username: string; db_name: string; ssl: number; password_enc: string | null }>(
-    'SELECT host, port, username, db_name, ssl, password_enc FROM connections WHERE database_id = :id AND mode = :mode',
+    'SELECT host, port, username, db_name, `ssl`, password_enc FROM connections WHERE database_id = :id AND mode = :mode',
     { id: databaseId, mode },
   )
   if (!c) return null

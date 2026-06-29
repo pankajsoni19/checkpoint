@@ -18,9 +18,9 @@ interface ConnInput {
 async function upsertConnection(databaseId: string, mode: 'read' | 'write', c: ConnInput, keepPassword = false) {
   const passwordEnc = c.password ? encryptSecret(c.password) : null
   await execute(
-    `INSERT INTO connections (id, database_id, mode, host, port, username, db_name, ssl, password_enc)
+    `INSERT INTO connections (id, database_id, mode, host, port, username, db_name, \`ssl\`, password_enc)
      VALUES (:id, :db, :mode, :host, :port, :username, :dbname, :ssl, :pw)
-     ON DUPLICATE KEY UPDATE host=:host, port=:port, username=:username, db_name=:dbname, ssl=:ssl,
+     ON DUPLICATE KEY UPDATE host=:host, port=:port, username=:username, db_name=:dbname, \`ssl\`=:ssl,
        password_enc = ${keepPassword ? 'COALESCE(:pw, password_enc)' : ':pw'}`,
     { id: newId('c'), db: databaseId, mode, host: c.host, port: c.port, username: c.username, dbname: c.database, ssl: c.ssl ? 1 : 0, pw: passwordEnc },
   )

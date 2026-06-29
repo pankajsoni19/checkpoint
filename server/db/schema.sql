@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS connections (
   port         INT NOT NULL,
   username     VARCHAR(255) NOT NULL,
   db_name      VARCHAR(255) NOT NULL,
-  ssl          TINYINT(1) NOT NULL DEFAULT 1,
+  `ssl`        TINYINT(1) NOT NULL DEFAULT 1,
   password_enc TEXT,
   created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY (database_id, mode),
