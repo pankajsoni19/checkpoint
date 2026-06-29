@@ -6,6 +6,7 @@ import { formatDate } from '../lib/format'
 import { notify } from '../lib/toast'
 import { PageHeader } from '../components/PageHeader'
 import { RoleBadge } from '../components/badges'
+import { Avatar } from '../components/Avatar'
 import { Dropdown } from '../components/Dropdown'
 import { Button, Card, ErrorBanner, Field, Modal, Spinner, TextInput } from '../components/ui'
 
@@ -108,9 +109,7 @@ export function UsersPage() {
                   <tr key={u.id} className="bg-white/30 hover:bg-white/60">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-semibold text-white">
-                          {(u.name ?? u.email).charAt(0).toUpperCase()}
-                        </div>
+                        <Avatar name={u.name} email={u.email} picture={u.picture} size={32} />
                         <div>
                           <p className="font-medium text-slate-800">
                             {u.name ?? u.email}

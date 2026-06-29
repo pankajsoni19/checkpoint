@@ -32,7 +32,7 @@ export function registerUsers(router: Router) {
     const orgs = await userOrgIds(user.id)
     if (orgs.length === 0) return json([toUser({ ...user, last_login_at: null }, user.id)])
     const rows = await query<UserRow>(
-      `SELECT DISTINCT u.id, u.email, u.name, u.picture, u.role, u.last_login_at
+      `SELECT DISTINCT u.id, u.email, u.name, u.picture, u.role, u.last_login_at, u.created_at
          FROM users u JOIN memberships m ON m.user_id = u.id
         WHERE m.org_id IN (${orgs.map(() => '?').join(',')}) ORDER BY u.created_at`,
       orgs,

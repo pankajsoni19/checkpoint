@@ -18,6 +18,7 @@ import {
   FaUsers,
 } from 'react-icons/fa'
 import { useAuth } from '../context/AuthContext'
+import { Avatar } from './Avatar'
 import { useTheme } from '../context/ThemeContext'
 import { can } from '../lib/format'
 import { RoleBadge } from './badges'
@@ -146,12 +147,13 @@ function SidebarContent({
             collapsed ? 'flex flex-col items-center gap-2' : 'flex items-center gap-2'
           }`}
         >
-          <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-semibold text-white"
+          <Avatar
+            name={user.name}
+            email={user.email}
+            picture={user.picture}
+            size={36}
             title={collapsed ? `${user.name} · ${user.role}` : undefined}
-          >
-            {user.name.charAt(0)}
-          </div>
+          />
           {collapsed ? null : (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-800">{user.name}</p>
