@@ -64,18 +64,52 @@ const LABEL: Record<MigrationEvent, string> = {
   apply: ':rocket: *Migration applied*',
 }
 
+interface MigrationInfo {
+  title: string
+  description: string | null
+  db_name: string
+  project_name: string
+  env_name: string | null
+}
+
+async function loadMigrationInfo(migrationId: string): Promise<MigrationInfo | null> {
+  return queryOne<MigrationInfo>(
+    `SELECT m.title, m.description, d.name AS db_name, p.name AS project_name, e.name AS env_name
+       FROM migrations m
+       JOIN \`databases\` d ON d.id = m.database_id
+       JOIN projects p ON p.id = d.project_id
+       LEFT JOIN environments e ON e.id = d.environment_id
+      WHERE m.id = :id`,
+    { id: migrationId },
+  )
+}
+
 // Notify the org's Slack channel about a migration lifecycle event, honoring the
 // per-event toggle. No-op when Slack is disabled/unconfigured or the toggle is off.
 export async function notifyMigration(
   orgId: string,
   event: MigrationEvent,
-  info: { title: string; database: string; actor: string; url?: string },
+  migrationId: string,
+  actor: string,
+  baseUrl: string,
 ): Promise<void> {
   const slack = await loadSlack(orgId)
   if (!slack || !slack.enabled || !slack.notification_token || !slack.channel_id) return
   if (!slack[TOGGLE[event]]) return
+
+  const m = await loadMigrationInfo(migrationId)
+  if (!m) return
+
   const verb = event === 'submit' ? 'Submitted' : event === 'approve' ? 'Approved' : 'Applied'
-  const link = info.url ? `\n<${info.url}|View migration>` : ''
-  const text = `${LABEL[event]}\n*${info.title}* — ${info.database}\n${verb} by ${info.actor}${link}`
-  await postMessage(slack, text)
+  const lines = [
+    LABEL[event],
+    `*Project:* ${m.project_name}`,
+    `*Environment:* ${m.env_name ?? '—'}`,
+    `*Title:* ${m.title}`,
+  ]
+  if (m.description?.trim()) lines.push(`*Description:* ${m.description.trim()}`)
+  lines.push(`*Db:* ${m.db_name}`)
+  lines.push(`${verb} by ${actor}`)
+  lines.push(`<${baseUrl}/migrations/${migrationId}|View migration>`)
+  await postMessage(slack, lines.join('\n'))
 }
