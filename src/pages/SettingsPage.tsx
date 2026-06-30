@@ -205,6 +205,11 @@ export function SettingsPage() {
                 onChange={(v) => setSettings({ ...settings, slack: { ...slack, notify_on_apply: v } })}
                 label="Migration applied"
               />
+              <Toggle
+                checked={slack.notify_on_reviewer}
+                onChange={(v) => setSettings({ ...settings, slack: { ...slack, notify_on_reviewer: v } })}
+                label="Reviewer added to migration"
+              />
             </div>
           </div>
         </Card>

@@ -270,6 +270,7 @@ export interface AppSettings {
     notify_on_submit: boolean
     notify_on_approve: boolean
     notify_on_apply: boolean
+    notify_on_reviewer: boolean
   }
   query: {
     // Statement timeout applied to every read-panel query.

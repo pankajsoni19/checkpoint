@@ -6,7 +6,7 @@ import { asJson } from '../lib/serialize'
 // Defaults applied when an org has not configured settings yet.
 const DEFAULT_SETTINGS = {
   email: { enabled: false, smtp_host: '', smtp_port: 587, from_address: '', username: '', has_password: false },
-  slack: { enabled: false, notification_token: '', channel_id: '', notify_on_submit: true, notify_on_approve: false, notify_on_apply: true },
+  slack: { enabled: false, notification_token: '', channel_id: '', notify_on_submit: true, notify_on_approve: false, notify_on_apply: true, notify_on_reviewer: false },
   query: { default_timeout_seconds: 30, format_on_run: true },
 }
 

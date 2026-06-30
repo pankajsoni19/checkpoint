@@ -188,10 +188,13 @@ export function registerMigrations(router: Router) {
     const user = requireCapability(ctx, 'edit')
     const mig = await loadMig(user.id, ctx.params.id)
     const { reviewers } = await readJson<{ reviewers: string[] }>(ctx.req)
+    const existing = (await query<{ reviewer_email: string }>('SELECT reviewer_email FROM migration_reviewers WHERE migration_id = :id', { id: mig.id })).map((r) => r.reviewer_email)
     await execute('DELETE FROM migration_reviewers WHERE migration_id = :id', { id: mig.id })
     for (const email of reviewers ?? []) {
       await execute('INSERT IGNORE INTO migration_reviewers (migration_id, reviewer_email) VALUES (:m, :e)', { m: mig.id, e: email })
     }
+    const added = (reviewers ?? []).filter((e) => !existing.includes(e))
+    if (added.length) await notifyMigration(mig.org_id, 'reviewer', mig.id, user.email, env.appBaseUrl || ctx.url.origin)
     return json(await fullMigration(await loadMig(user.id, mig.id)))
   })
 
