@@ -203,6 +203,11 @@ export interface Migration {
   description: string | null
   status: MigrationStatus
   author_email: string
+  // Project governance snapshot: who may approve / who may release (apply).
+  approvers: string[]
+  releasers: string[]
+  // How many distinct approvals are required before the migration is approved.
+  required_approvals: number
   reviewers: string[]
   queries: MigrationQuery[]
   comments: MigrationComment[]

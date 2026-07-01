@@ -1,8 +1,8 @@
-import { type Router, type Ctx, json, readJson, badRequest, notFound } from '../lib/http'
+import { type Router, type Ctx, json, readJson, badRequest, notFound, forbidden } from '../lib/http'
 import { query, queryOne, execute } from '../db/pool'
-import { requireUser, requireCapability, userOrgIds, assertOrgMember } from '../lib/auth'
+import { requireUser, requireCapability, can, userOrgIds, assertOrgMember } from '../lib/auth'
 import { newId } from '../lib/ids'
-import { iso } from '../lib/serialize'
+import { iso, asJson } from '../lib/serialize'
 import { writeAudit } from '../lib/audit'
 import { getConnectionSecret } from './databases.repo'
 import { applyStatements } from '../lib/externalDb'
@@ -24,13 +24,19 @@ interface MigRow {
   approved_at: Date | null
   applied_at: Date | null
   created_at: Date
+  approvers: unknown
+  releasers: unknown
+  required_approvals: number | null
+  allow_self_approval: number | null
 }
 
 const MIG_SELECT = `
-  SELECT m.*, d.name AS db_name, d.engine, p.org_id
+  SELECT m.*, d.name AS db_name, d.engine, p.org_id,
+         ps.approvers, ps.releasers, ps.required_approvals, ps.allow_self_approval
   FROM migrations m
   JOIN \`databases\` d ON d.id = m.database_id
-  JOIN projects p ON p.id = d.project_id`
+  JOIN projects p ON p.id = d.project_id
+  LEFT JOIN project_settings ps ON ps.project_id = p.id`
 
 async function fullMigration(row: MigRow) {
   const queries = await query<{ id: string; ord: number; sql_text: string }>(
@@ -58,6 +64,9 @@ async function fullMigration(row: MigRow) {
     description: row.description,
     status: row.status,
     author_email: row.author_email,
+    approvers: asJson<string[]>(row.approvers, []),
+    releasers: asJson<string[]>(row.releasers, []),
+    required_approvals: Math.max(1, Number(row.required_approvals) || 1),
     reviewers: reviewers.map((r) => r.reviewer_email),
     queries: queries.map((q) => ({ id: q.id, order: Number(q.ord), sql: q.sql_text })),
     comments: comments.map((c) => ({ id: c.id, author_email: c.author_email, author_name: c.author_name, body: c.body, created_at: iso(c.created_at)! })),
@@ -141,10 +150,28 @@ export function registerMigrations(router: Router) {
   // Lifecycle transitions.
   for (const action of ['submit', 'approve', 'reject', 'apply'] as const) {
     router.post(`/api/migrations/:id/${action}`, async (ctx: Ctx) => {
-      // submit is an editor action; approve/reject/apply require approver (admin).
-      const user = requireCapability(ctx, action === 'submit' ? 'edit' : 'approve')
+      const user = requireUser(ctx)
       const mig = await loadMig(user.id, ctx.params.id)
+      // Authorization: submit → editor; approve/reject → admin or a designated
+      // approver; apply → admin or a designated releaser (both from project settings).
+      if (action === 'submit') {
+        if (!can(user.role, 'edit')) throw forbidden('Your role does not permit this action.')
+      } else if (action === 'apply') {
+        const releasers = asJson<string[]>(mig.releasers, [])
+        if (!can(user.role, 'approve') && !releasers.includes(user.email)) {
+          throw forbidden('Only an admin or a designated releaser can apply this migration.')
+        }
+      } else {
+        const approvers = asJson<string[]>(mig.approvers, [])
+        if (!can(user.role, 'approve') && !approvers.includes(user.email)) {
+          throw forbidden('Only an admin or a designated approver can approve or reject this migration.')
+        }
+      }
       const { note } = await readJson<{ note?: string }>(ctx.req).catch(() => ({ note: undefined }))
+
+      // Set when this approval meets the required-approvals threshold (drives the
+      // status flip and the "approved" Slack notification).
+      let becameApproved = false
 
       if (action === 'apply') {
         if (mig.status !== 'approved') throw badRequest('Only approved migrations can be applied.')
@@ -160,23 +187,35 @@ export function registerMigrations(router: Router) {
         }
         await execute('UPDATE migrations SET status = :s, applied_at = NOW() WHERE id = :id', { s: 'applied', id: mig.id })
       } else if (action === 'approve') {
+        if (mig.status !== 'pending_approval') throw badRequest('Only migrations pending approval can be approved.')
         // The author may only approve their own migration when the project allows it.
-        if (user.email === mig.author_email) {
-          const ps = await queryOne<{ allow_self_approval: number }>(
-            `SELECT ps.allow_self_approval FROM \`databases\` d
-               JOIN project_settings ps ON ps.project_id = d.project_id
-              WHERE d.id = :dbid`,
-            { dbid: mig.database_id },
-          )
-          if (!ps?.allow_self_approval) throw badRequest('You cannot approve your own migration. Ask another approver, or enable self-approval in project settings.')
+        if (user.email === mig.author_email && !mig.allow_self_approval) {
+          throw badRequest('You cannot approve your own migration. Ask another approver, or enable self-approval in project settings.')
         }
-        await execute('UPDATE migrations SET status = :s, approved_by = :by, approved_at = NOW() WHERE id = :id', { s: 'approved', by: user.email, id: mig.id })
+        // One approval per person; count distinct approvers (including this one)
+        // against the project's required-approvals threshold.
+        const [{ mine }] = await query<{ mine: number }>(
+          "SELECT COUNT(*) AS mine FROM migration_events WHERE migration_id = :id AND action = 'approve' AND actor_email = :email",
+          { id: mig.id, email: user.email },
+        )
+        if (Number(mine) > 0) throw badRequest('You have already approved this migration.')
+        const [{ approvals }] = await query<{ approvals: number }>(
+          "SELECT COUNT(DISTINCT actor_email) AS approvals FROM migration_events WHERE migration_id = :id AND action = 'approve'",
+          { id: mig.id },
+        )
+        const required = Math.max(1, Number(mig.required_approvals) || 1)
+        if (Number(approvals) + 1 >= required) {
+          await execute('UPDATE migrations SET status = :s, approved_by = :by, approved_at = NOW() WHERE id = :id', { s: 'approved', by: user.email, id: mig.id })
+          becameApproved = true
+        }
+        // Otherwise the migration stays pending; this approval is recorded as an event below.
       } else {
         await execute('UPDATE migrations SET status = :s WHERE id = :id', { s: NEXT_STATUS[action], id: mig.id })
       }
       await addEvent(mig.id, user, action, note ?? null)
       await writeAudit({ actor: user, orgId: mig.org_id, action: `migration.${action}`, entityType: 'migration', entityId: mig.id, entityLabel: mig.title, summary: `${action[0].toUpperCase() + action.slice(1)} migration on ${mig.db_name}` })
-      if (action === 'submit' || action === 'approve' || action === 'apply') {
+      // Notify on submit/apply, and on approve only once fully approved (threshold met).
+      if (action === 'submit' || action === 'apply' || (action === 'approve' && becameApproved)) {
         await notifyMigration(mig.org_id, action, mig.id, user.email, env.appBaseUrl || ctx.url.origin)
       }
       return json(await fullMigration(await loadMig(user.id, mig.id)))

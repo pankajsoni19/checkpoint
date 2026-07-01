@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { FaCheck, FaCommentDots, FaPlay, FaPlus, FaTimes, FaUserCheck } from 'react-icons/fa'
+import { FaCheck, FaCheckDouble, FaCommentDots, FaPlay, FaPlus, FaTimes, FaUserCheck } from 'react-icons/fa'
 import { api } from '../services/api'
 import type { ManagedUser, Migration } from '../types'
 import { useAuth } from '../context/AuthContext'
@@ -104,6 +104,15 @@ export function MigrationDetailPage() {
   const isAuthor = migration.author_email === user?.email
   const canApprove = can(user?.role, 'approve')
   const canEdit = can(user?.role, 'edit')
+  const email = user?.email ?? ''
+  // Approve/reject: admins or a designated approver; apply: admins or a designated releaser.
+  const canApproveMig = canApprove || migration.approvers.includes(email)
+  const canApply = canApprove || migration.releasers.includes(email)
+  // Hide the Approve button once this user has already approved (one vote each).
+  const alreadyApproved = migration.events.some((e) => e.action === 'approve' && e.actor_email === email)
+  // Distinct approvers so far, for the approval-progress indicator.
+  const approvedBy = Array.from(new Set(migration.events.filter((e) => e.action === 'approve').map((e) => e.actor_email)))
+  const showApprovalProgress = migration.status === 'pending_approval' || migration.status === 'approved' || migration.status === 'applied'
   const actions: React.ReactNode[] = []
 
   if (migration.status === 'draft' && (isAuthor || can(user?.role, 'edit'))) {
@@ -113,17 +122,21 @@ export function MigrationDetailPage() {
       </Button>,
     )
   }
-  if (migration.status === 'pending_approval' && canApprove) {
+  if (migration.status === 'pending_approval' && canApproveMig) {
     actions.push(
       <Button key="reject" variant="danger" onClick={() => setRejectOpen(true)} disabled={busy}>
         <FaTimes size={11} /> Reject
       </Button>,
-      <Button key="approve" onClick={() => transition('approve')} loading={busy}>
-        <FaCheck size={11} /> Approve
-      </Button>,
     )
+    if (!alreadyApproved) {
+      actions.push(
+        <Button key="approve" onClick={() => transition('approve')} loading={busy}>
+          <FaCheck size={11} /> Approve
+        </Button>,
+      )
+    }
   }
-  if (migration.status === 'approved' && canApprove) {
+  if (migration.status === 'approved' && canApply) {
     actions.push(
       <Button key="apply" onClick={() => transition('apply')} loading={busy}>
         <FaPlay size={11} /> Apply to database
@@ -233,6 +246,42 @@ export function MigrationDetailPage() {
               <Meta label="Approved by">{migration.approved_by ?? '—'}</Meta>
               <Meta label="Applied">{formatDate(migration.applied_at)}</Meta>
             </dl>
+
+            {showApprovalProgress ? (
+              <div className="mt-4 border-t border-slate-200/60 pt-3">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <span className="flex items-center gap-2">
+                    <FaCheckDouble size={11} /> Approvals
+                  </span>
+                  <span className={approvedBy.length >= migration.required_approvals ? 'text-emerald-600' : 'text-slate-500'}>
+                    {approvedBy.length} / {migration.required_approvals}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all"
+                    style={{ width: `${Math.min(100, (approvedBy.length / migration.required_approvals) * 100)}%` }}
+                  />
+                </div>
+                {approvedBy.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {approvedBy.map((e) => {
+                      const u = users.find((x) => x.email === e)
+                      return (
+                        <span
+                          key={e}
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-200/70 bg-emerald-50/80 px-2 py-0.5 text-xs text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/20 dark:text-emerald-200"
+                        >
+                          <FaCheck size={8} /> {u?.name ?? e}
+                        </span>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-500">Awaiting approvals.</p>
+                )}
+              </div>
+            ) : null}
 
             <div className="mt-4 border-t border-slate-200/60 pt-3">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
