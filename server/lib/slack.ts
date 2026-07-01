@@ -38,6 +38,45 @@ async function loadSlack(orgId: string): Promise<SlackSettings | null> {
   return asJson<SlackSettings>(row.slack, DEFAULTS)
 }
 
+// Cache email → Slack mention resolutions so we don't hit users.lookupByEmail on
+// every notification. Keyed by token so separate workspaces never collide.
+// `null` = looked up but no matching Slack user (so we fall back to plain email).
+const mentionCache = new Map<string, string | null>()
+
+// Resolve an email to a Slack mention token (`<@U…>`). Returns null when the email
+// has no Slack account or the lookup fails — callers fall back to the plain email.
+// Requires the `users:read.email` scope on the notification token.
+async function lookupMention(token: string, email: string): Promise<string | null> {
+  const key = `${token}:${email.toLowerCase()}`
+  const cached = mentionCache.get(key)
+  if (cached !== undefined) return cached
+
+  let mention: string | null = null
+  try {
+    const res = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; user?: { id?: string }; error?: string }
+    if (data.ok && data.user?.id) {
+      mention = `<@${data.user.id}>`
+    } else if (data.error && data.error !== 'users_not_found') {
+      console.error(`[slack] users.lookupByEmail failed for ${email}: ${data.error}`)
+    }
+  } catch (err) {
+    console.error(`[slack] users.lookupByEmail failed for ${email}: ${(err as Error).message}`)
+  }
+  mentionCache.set(key, mention)
+  return mention
+}
+
+// Turn a list of emails into a display string, replacing each with a Slack mention
+// where the email maps to a Slack user and keeping the plain email otherwise.
+async function mentionList(token: string, emails: string[]): Promise<string> {
+  const resolved = await Promise.all(emails.map(async (e) => (await lookupMention(token, e)) ?? e))
+  return resolved.join(', ')
+}
+
 // Post a message to the org's configured Slack channel via chat.postMessage.
 // Notifications are best-effort: any failure is logged and swallowed so it never
 // breaks the migration request that triggered it.
@@ -138,8 +177,8 @@ export async function notifyMigration(
   ]
   if (m.description?.trim()) lines.push(`*Description:* ${m.description.trim()}`)
   lines.push(`*Db:* ${m.db_name}`)
-  if (m.approvers.length) lines.push(`*Approvers:* ${m.approvers.join(', ')}`)
-  if (reviewers.length) lines.push(`*Reviewers:* ${reviewers.join(', ')}`)
+  if (m.approvers.length) lines.push(`*Approvers:* ${await mentionList(slack.notification_token, m.approvers)}`)
+  if (reviewers.length) lines.push(`*Reviewers:* ${await mentionList(slack.notification_token, reviewers)}`)
   lines.push(`${verb} by ${actor}`)
   lines.push(`<${baseUrl}/migrations/${migrationId}|View migration>`)
   await postMessage(slack, lines.join('\n'))
