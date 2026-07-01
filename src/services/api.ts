@@ -126,10 +126,12 @@ export const api = {
   getDatabase(databaseId: string): Promise<Database | undefined> {
     return request<Database>(`/api/databases/${databaseId}`)
   },
-  updateConnection(databaseId: string, conn: Connection): Promise<Connection> {
+  // `password` is only sent when the user entered a new one; omitting it keeps the
+  // stored password (server COALESCEs a missing value).
+  updateConnection(databaseId: string, conn: Connection, password?: string): Promise<Connection> {
     return request<Connection>(`/api/databases/${databaseId}/connections/${conn.mode}`, {
       method: 'PUT',
-      body: JSON.stringify(conn),
+      body: JSON.stringify({ ...conn, password }),
     })
   },
   testConnection(input: {

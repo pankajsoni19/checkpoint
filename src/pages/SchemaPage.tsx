@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { can, formatRows, relativeTime } from '../lib/format'
 import { notify } from '../lib/toast'
 import { Button, Card, EmptyState, Spinner, TextInput } from '../components/ui'
+import { Highlight } from '../components/Highlight'
 import { useDatabase } from './DatabaseLayout'
 
 export function SchemaPage() {
@@ -101,6 +102,7 @@ export function SchemaPage() {
               key={table.name}
               table={table}
               columns={columns}
+              query={q}
               open={q ? true : openTable === table.name}
               onToggle={() => (q ? undefined : setOpenTable((prev) => (prev === table.name ? null : table.name)))}
             />
@@ -114,11 +116,13 @@ export function SchemaPage() {
 function TableRow({
   table,
   columns,
+  query,
   open,
   onToggle,
 }: {
   table: TableDef
   columns: ColumnDef[]
+  query: string
   open: boolean
   onToggle: () => void
 }) {
@@ -131,7 +135,7 @@ function TableRow({
         <span className="text-slate-400">{open ? <FaChevronDown size={11} /> : <FaChevronRight size={11} />}</span>
         <FaTable className="text-indigo-400" size={13} />
         <span className="font-mono text-sm font-medium text-slate-800">
-          {table.schema}.{table.name}
+          {table.schema}.<Highlight text={table.name} query={query} />
         </span>
         <span className="ml-auto text-xs text-slate-500">
           {table.columns.length} cols · ~{formatRows(table.estimated_rows)} rows
@@ -155,7 +159,7 @@ function TableRow({
                   <td className="py-1.5 font-mono text-[13px] text-slate-800">
                     <span className="inline-flex items-center gap-1.5">
                       {col.is_primary_key ? <FaKey size={9} className="text-amber-500" title="Primary key" /> : null}
-                      {col.name}
+                      <Highlight text={col.name} query={query} />
                     </span>
                   </td>
                   <td className="py-1.5 font-mono text-[13px] text-sky-700">{col.data_type}</td>

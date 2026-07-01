@@ -4,6 +4,7 @@ import { api } from '../services/api'
 import type { Database, SchemaSnapshot } from '../types'
 import { ENGINE_LABELS } from '../lib/format'
 import { engineDot } from '../lib/engines'
+import { Highlight } from './Highlight'
 
 // Searchable schema tree shown alongside the query editor:
 // database → tables → columns [type]. Click a name to insert it into the query.
@@ -98,7 +99,7 @@ export function SchemaExplorer({ database, onInsert }: { database: Database; onI
                                 }
                               }}
                             >
-                              {table.name}
+                              <Highlight text={table.name} query={q} />
                             </span>
                             <span className="ml-auto pl-1 text-[10px] text-slate-400">{table.columns.length}</span>
                           </button>
@@ -119,7 +120,7 @@ export function SchemaExplorer({ database, onInsert }: { database: Database; onI
                                     <span className="w-2 shrink-0" />
                                   )}
                                   <span className="truncate font-mono text-[12px] text-slate-700 dark:text-slate-300">
-                                    {col.name}
+                                    <Highlight text={col.name} query={q} />
                                   </span>
                                   <span className="ml-auto truncate pl-1 font-mono text-[11px] text-sky-600 dark:text-sky-400">
                                     {col.data_type}

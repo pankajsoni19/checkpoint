@@ -128,10 +128,14 @@ function ConnectionEditor({
   async function save() {
     setSaving(true)
     try {
-      const saved = await api.updateConnection(databaseId, {
-        ...form,
-        has_password: form.has_password || password.length > 0,
-      })
+      const saved = await api.updateConnection(
+        databaseId,
+        {
+          ...form,
+          has_password: form.has_password || password.length > 0,
+        },
+        password || undefined,
+      )
       notify.success(`${saved.mode === 'read' ? 'Read' : 'Write'} connection updated`)
       onSaved(saved)
     } catch (err) {
