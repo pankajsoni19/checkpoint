@@ -33,3 +33,18 @@ export async function execute(sql: string, params?: Params): Promise<mysql.Resul
   const [result] = await pool.execute(sql, params as never)
   return result as mysql.ResultSetHeader
 }
+
+// Run a raw, multi-statement SQL script (a schema dump or a migration) in a single
+// round trip via a short-lived, dedicated connection with multipleStatements
+// enabled — deliberately kept off the shared pool, which stays single-statement to
+// avoid stacked-query injection. For trusted, parameter-free SQL only.
+export async function execScript(sql: string): Promise<void> {
+  const trimmed = sql.trim()
+  if (!trimmed) return
+  const conn = await mysql.createConnection({ ...cfg, multipleStatements: true })
+  try {
+    await conn.query(trimmed)
+  } finally {
+    await conn.end()
+  }
+}
