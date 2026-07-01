@@ -70,9 +70,16 @@ async function lookupMention(token: string, email: string): Promise<string | nul
   return mention
 }
 
+// Sentinel stored in a releasers list meaning "any org member" (mirrors ALL_USERS
+// on the client / in modules/migrations). Rendered as plain text, never a mention —
+// we must not @-ping the entire team.
+const ALL_USERS = '*'
+
 // Turn a list of emails into a display string, replacing each with a Slack mention
-// where the email maps to a Slack user and keeping the plain email otherwise.
+// where the email maps to a Slack user and keeping the plain email otherwise. When
+// the list is the ALL_USERS sentinel, show a plain label instead of pinging everyone.
 async function mentionList(token: string, emails: string[]): Promise<string> {
+  if (emails.includes(ALL_USERS)) return 'All Users'
   const resolved = await Promise.all(emails.map(async (e) => (await lookupMention(token, e)) ?? e))
   return resolved.join(', ')
 }
@@ -120,8 +127,9 @@ interface MigrationInfo {
   db_name: string
   project_name: string
   env_name: string | null
-  // Configured approvers for the migration's project (who is allowed to approve).
+  // Configured approvers/releasers for the migration's project.
   approvers: string[]
+  releasers: string[]
 }
 
 async function loadMigrationInfo(migrationId: string): Promise<MigrationInfo | undefined> {
@@ -132,9 +140,10 @@ async function loadMigrationInfo(migrationId: string): Promise<MigrationInfo | u
     project_name: string
     env_name: string | null
     approvers: unknown
+    releasers: unknown
   }>(
     `SELECT m.title, m.description, d.name AS db_name, p.name AS project_name, e.name AS env_name,
-            ps.approvers AS approvers
+            ps.approvers AS approvers, ps.releasers AS releasers
        FROM migrations m
        JOIN \`databases\` d ON d.id = m.database_id
        JOIN projects p ON p.id = d.project_id
@@ -144,7 +153,7 @@ async function loadMigrationInfo(migrationId: string): Promise<MigrationInfo | u
     { id: migrationId },
   )
   if (!row) return undefined
-  return { ...row, approvers: asJson<string[]>(row.approvers, []) }
+  return { ...row, approvers: asJson<string[]>(row.approvers, []), releasers: asJson<string[]>(row.releasers, []) }
 }
 
 // Notify the org's Slack channel about a migration lifecycle event, honoring the
@@ -178,6 +187,7 @@ export async function notifyMigration(
   if (m.description?.trim()) lines.push(`*Description:* ${m.description.trim()}`)
   lines.push(`*Db:* ${m.db_name}`)
   if (m.approvers.length) lines.push(`*Approvers:* ${await mentionList(slack.notification_token, m.approvers)}`)
+  if (m.releasers.length) lines.push(`*Releasers:* ${await mentionList(slack.notification_token, m.releasers)}`)
   if (reviewers.length) lines.push(`*Reviewers:* ${await mentionList(slack.notification_token, reviewers)}`)
   lines.push(`${verb} by ${actor}`)
   lines.push(`<${baseUrl}/migrations/${migrationId}|View migration>`)
