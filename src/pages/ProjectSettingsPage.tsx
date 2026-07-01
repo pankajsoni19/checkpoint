@@ -64,11 +64,12 @@ export function ProjectSettingsPage() {
     )
   }
 
-  // Required approvals can't exceed the number of approvers (min 1).
-  const maxRequired = Math.max(1, settings.approvers.length)
-  const approvalOptions = Array.from({ length: maxRequired }, (_, i) => ({
-    value: String(i + 1),
-    label: String(i + 1),
+  // Required approvals can't exceed the number of approvers; 0 means no approval
+  // is required before release.
+  const maxRequired = settings.approvers.length
+  const approvalOptions = Array.from({ length: maxRequired + 1 }, (_, i) => ({
+    value: String(i),
+    label: String(i),
   }))
 
   return (
@@ -98,7 +99,7 @@ export function ProjectSettingsPage() {
           placeholder="Add approver…"
           onChange={(approvers) =>
             setSettings((s) =>
-              s ? { ...s, approvers, required_approvals: Math.min(s.required_approvals, Math.max(1, approvers.length)) } : s,
+              s ? { ...s, approvers, required_approvals: Math.min(s.required_approvals, approvers.length) } : s,
             )
           }
         />
@@ -117,6 +118,7 @@ export function ProjectSettingsPage() {
           selected={settings.releasers}
           editable={editable}
           placeholder="Add releaser…"
+          allLabel="All Users"
           onChange={(releasers) => setSettings((s) => (s ? { ...s, releasers } : s))}
         />
       </Card>
@@ -128,7 +130,7 @@ export function ProjectSettingsPage() {
         </div>
         <Field
           label="Approvals required before release"
-          hint={`Between 1 and ${maxRequired} (the number of approvers).`}
+          hint={`Between 0 and ${maxRequired} (the number of approvers). 0 means no approval is required before release.`}
         >
           {editable ? (
             <Dropdown

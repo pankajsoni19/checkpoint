@@ -10,6 +10,7 @@ import { PageHeader } from '../components/PageHeader'
 import { EngineBadge, StatusBadge } from '../components/badges'
 import { Dropdown } from '../components/Dropdown'
 import { DateTimePicker } from '../components/DateTimePicker'
+import { ALL_USERS } from '../components/UserMultiSelect'
 import { Button, Card, EmptyState, ErrorBanner, Modal, Spinner, TextArea } from '../components/ui'
 
 const ACTION_TOAST: Record<string, string> = {
@@ -159,12 +160,15 @@ export function MigrationDetailPage() {
   const email = user?.email ?? ''
   // Approve/reject: admins or a designated approver; apply: admins or a designated releaser.
   const canApproveMig = canApprove || migration.approvers.includes(email)
-  const canApply = canApprove || migration.releasers.includes(email)
+  const canApply = canApprove || migration.releasers.includes(ALL_USERS) || migration.releasers.includes(email)
   // Hide the Approve button once this user has already approved (one vote each).
   const alreadyApproved = migration.events.some((e) => e.action === 'approve' && e.actor_email === email)
   // Distinct approvers so far, for the approval-progress indicator.
   const approvedBy = Array.from(new Set(migration.events.filter((e) => e.action === 'approve').map((e) => e.actor_email)))
-  const showApprovalProgress = migration.status === 'pending_approval' || migration.status === 'approved' || migration.status === 'applied'
+  // No progress bar when the project requires 0 approvals (nothing to track).
+  const showApprovalProgress =
+    migration.required_approvals > 0 &&
+    (migration.status === 'pending_approval' || migration.status === 'approved' || migration.status === 'applied')
   const actions: React.ReactNode[] = []
 
   if (migration.status === 'draft' && (isAuthor || can(user?.role, 'edit'))) {
